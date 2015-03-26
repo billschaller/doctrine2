@@ -8,6 +8,7 @@ use Doctrine\Tests\Models\CMS\CmsUser;
 use Doctrine\Tests\Models\CMS\CmsGroup;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Tests\Models\Pagination\Company;
+use Doctrine\Tests\Models\Pagination\Department;
 use Doctrine\Tests\Models\Pagination\Logo;
 use ReflectionMethod;
 
@@ -449,6 +450,32 @@ class PaginationTest extends \Doctrine\Tests\OrmFunctionalTestCase
         $this->assertCount(3, $paginator->getIterator());
     }
 
+    /**
+     * @dataProvider useOutputWalkers
+     */
+    public function testIterateResultWithOrderIsValid($useOutputWalkers)
+    {
+        $dql = 'SELECT c, d FROM Doctrine\Tests\Models\Pagination\Company c JOIN c.departments d ORDER BY c.name DESC, d.name ASC';
+        $query = $this->_em->createQuery($dql);
+
+        $paginator = new Paginator($query);
+        $paginator->setUseOutputWalkers($useOutputWalkers);
+        $this->assertCount(9, $paginator);
+        $iter = $paginator->getIterator();
+        $this->assertCount(9, $iter);
+        $i = 8;
+        $companies = iterator_to_array($iter);
+        $this->assertCount(9, $companies);
+        foreach($companies as $company) {
+            $this->assertEquals("name" . $i--, $company->name);
+            $this->assertCount(3, $company->departments);
+            $j = 0;
+            foreach($company->departments as $department) {
+                $this->assertEquals("name" . $j++, $department->name);
+            }
+        }
+    }
+
     public function testDetectOutputWalker()
     {
         // This query works using the output walkers but causes an exception using the TreeWalker
@@ -553,7 +580,15 @@ class PaginationTest extends \Doctrine\Tests\OrmFunctionalTestCase
             $company->logo->image_width = 100 + $i;
             $company->logo->image_height = 100 + $i;
             $company->logo->company = $company;
+
+            for($j=0;$j<3;$j++) {
+                $department = new Department();
+                $department->name = "name$j";
+                $department->company = $company;
+                $company->departments[] = $department;
+            }
             $this->_em->persist($company);
+
         }
 
         $this->_em->flush();
