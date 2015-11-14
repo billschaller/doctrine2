@@ -7,31 +7,110 @@ The Second Level Cache
     is a very complex feature and we cannot guarantee yet that it works stable
     in all cases.
 
-The Second Level Cache is designed to reduce the amount of necessary database access.
-It sits between your application and the database to avoid the number of database hits as much as possible.
+The Second Level Cache (SLC) is designed to reduce the number of queries your
+application has to make against your database.
 
-When turned on, entities will be first searched in cache and if they are not found,
-a database query will be fired an then the entity result will be stored in a cache provider.
+When the SLC is turned on, the cache will be queried for entity data before your
+database. If an entity is not found in the cache, a database query will be fired
+to fetch the entity data. The entity data will then be stored in the cache, so
+that the next time the same entity is requested, no database query will be
+necessary.
 
-There are some flavors of caching available, but is better to cache read-only data.
+There are multiple caching modes available via the core SLC implementation. In
+general, using the read-only mode is less complex, and will help you to avoid
+some consistency issues that can arise when using the read-write strategies.
 
-Be aware that caches are not aware of changes made to the persistent store by another application.
-They can, however, be configured to regularly expire cached data.
+When planning an implementation using the SLC, keep in mind that the SLC cache
+is not aware of changes to persistent data made outside of Doctrine. Caches can,
+however, be configured to regularly expire cached data.
+
+Cache Regions
+-------------
+
+The SLC does not store instances of entities; instead it caches only an array
+containing the entity identifier and property values.
+
+The cache keys for each item stored are built canonically from a hash of the
+entity name, collection name, or query text. Additionally, each cache key is
+prefixed with a region name.
+
+Each entity class, collection association and query can be assigned a region.
+The region name can be configured for entities and collections in the mapping
+data for the entity or property. A query object can be assigned a region name
+using the query API.
+
+If a region is not assigned for an entity, collection, or query, the default
+region will be used.
+
+.. _reference-second-level-cache-regions:
+
+Default Implementations
+-----------------------
+
+``Doctrine\ORM\Cache\Region\DefaultRegion`` Is the default implementation.
+This is a simple cache region which is compatible with all doctrine-cache
+drivers but does not support locking.
+
+``Doctrine\ORM\Cache\Region`` and ``Doctrine\ORM\Cache\ConcurrentRegion``
+Define contracts that should be implemented by cache providers.
+
+Implementing one of these contracts will allow you to provide your own
+cache implementation that can take advantage of a specific cache driver.
+
+If you want to support locking for ``READ_WRITE`` strategies you should
+implement ``Doctrine\ORM\Cache\ConcurrentRegion`` instead of
+``Doctrine\ORM\Cache\Region``.
+
+Cache Region Interface
+~~~~~~~~~~~~~~~~~~~~~~
+
+``Doctrine\ORM\Cache\Region``
+
+Defines a contract for a non-concurrently managed data region.
+
+A ``Doctrine\ORM\Cache\Region`` is designed to store data without considering concurrency.
+This type of region is used for read-only data.
+
+`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.Region.html/>`_.
+
+Concurrent cache region
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``Doctrine\ORM\Cache\ConcurrentRegion``
+
+Defines a contract for a concurrently managed data region.
+
+A ``Doctrine\ORM\Cache\ConcurrentRegion`` is designed to store concurrently managed data.
+By default, Doctrine provides a very simple implementation based on file locks ``Doctrine\ORM\Cache\Region\FileLockRegion``.
+
+If you want to use a ``READ_WRITE`` cache, you should consider providing your own cache region.
 
 
-Caching Regions
----------------
+`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.ConcurrentRegion.html/>`_.
 
-Second level cache does not store instances of an entity, instead it caches only entity identifier and values.
-Each entity class, collection association and query has its region, where values of each instance are stored.
+Timestamp Region
+~~~~~~~~~~~~~~~~
 
-Caching Regions are specific region into the cache provider that might store entities, collection or queries.
-Each cache region resides in a specific cache namespace and has its own lifetime configuration.
+``Doctrine\ORM\Cache\TimestampRegion``
 
-Notice that when caching collection and queries only identifiers are stored.
+Tracks the timestamps of the most recent updates to particular entity.
+
+`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.TimestampRegion.html/>`_.
+
+Data Storage
+~~~~~~~~~~~~
+
+.. todo::
+Clean up this section...
+
+When caching collection and queries only identifiers are stored.
 The entity values will be stored in its own region
 
-Something like below for an entity region :
+Something like below for an entity region:
+
+.. note::
+
+    The following data structures represents now the cache will looks like, this is not actual cached data.
 
 .. code-block:: php
 
@@ -67,60 +146,6 @@ A query region might be something like :
     ];
 
 
-.. note::
-
-    The following data structures represents now the cache will looks like, this is not actual cached data.
-
-
-.. _reference-second-level-cache-regions:
-
-Cache Regions
--------------
-
-``Doctrine\ORM\Cache\Region\DefaultRegion`` It's the default implementation.
- A simplest cache region compatible with all doctrine-cache drivers but does not support locking.
-
-``Doctrine\ORM\Cache\Region`` and ``Doctrine\ORM\Cache\ConcurrentRegion``
-Defines contracts that should be implemented by a cache provider.
-
-It allows you to provide your own cache implementation that might take advantage of specific cache driver.
-
-If you want to support locking for ``READ_WRITE`` strategies you should implement ``ConcurrentRegion``; ``CacheRegion`` otherwise.
-
-
-Cache region
-~~~~~~~~~~~~
-
-Defines a contract for accessing a particular region.
-
-``Doctrine\ORM\Cache\Region``
-
-Defines a contract for accessing a particular cache region.
-
-`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.Region.html/>`_.
-
-Concurrent cache region
-~~~~~~~~~~~~~~~~~~~~~~~
-
-A ``Doctrine\ORM\Cache\ConcurrentRegion`` is designed to store concurrently managed data region.
-By default, Doctrine provides a very simple implementation based on file locks ``Doctrine\ORM\Cache\Region\FileLockRegion``.
-
-If you want to use an ``READ_WRITE`` cache, you should consider providing your own cache region.
-
-``Doctrine\ORM\Cache\ConcurrentRegion``
-
-Defines contract for concurrently managed data region.
-
-`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.ConcurrentRegion.html/>`_.
-
-Timestamp region
-~~~~~~~~~~~~~~~~
-
-``Doctrine\ORM\Cache\TimestampRegion``
-
-Tracks the timestamps of the most recent updates to particular entity.
-
-`See API Doc <http://www.doctrine-project.org/api/orm/2.5/class-Doctrine.ORM.Cache.TimestampRegion.html/>`_.
 
 .. _reference-second-level-cache-mode:
 
